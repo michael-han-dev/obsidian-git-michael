@@ -135,9 +135,9 @@ This is an acceptance check, not something the test stub can establish.
 | `.gitignore`                                               | Keep generated E2E evidence out of source control.                                                       |
 | `README.md`, `docs/Features.md`                            | Commands, desktop scope, restoration semantics, and local-only storage.                                  |
 
-Preserve existing command IDs and the main architectural overview. Document
-stash internals in [ARCHITECTURE-STASH.md](ARCHITECTURE-STASH.md) and link the
-desktop extension from `ARCHITECTURE.md`.
+Preserve existing command IDs. Document stash internals and their connection to
+the existing layers in [ARCHITECTURE-STASH.md](ARCHITECTURE-STASH.md).
+Keep `ARCHITECTURE.md` as a local reference outside the public branch.
 
 ## Failure modes to cover before implementation
 
@@ -254,10 +254,10 @@ Installation and testing: [guide](tests/e2e/README.md).
 
 -   [x] Add `ARCHITECTURE-STASH.md` with the implemented flow, source map,
         safeguards, and validation architecture.
--   [x] Link it from `ARCHITECTURE.md` and clarify shared versus desktop-only
-        backend capabilities.
--   [x] Verify document formatting and all 31 relative file links across the
-        overview, stash architecture, and plan; `git diff --check` passes.
+-   [x] Explain shared versus desktop-only backend capabilities in the stash
+        architecture document without requiring the local overview.
+-   [x] Verify document formatting and relative file links; `git diff --check`
+        passes.
 
 ## Public sharing review
 
@@ -281,3 +281,7 @@ Simplified Technical English. Leave the pull request open and unmerged.
 
 The user will create the pull request manually. Commit and push the feature
 branch, then provide the title and description for the user's PR form.
+
+Publication follow-up: remove `ARCHITECTURE.md` from Git as requested, preserve
+the local file through a local exclude rule, and remove public links to it.
+Commit and push the documentation change without merging the feature branch.

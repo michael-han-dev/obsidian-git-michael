@@ -1,13 +1,12 @@
 # Desktop stash architecture
 
-This document describes the stash extension to [ARCHITECTURE.md](ARCHITECTURE.md).
-The main document explains the plugin's layers; this one follows stash through
-those layers and records its safeguards. Implementation decisions and validation
-history live in [plan.md](plan.md).
+This document explains how desktop stash uses the existing Obsidian Git layers.
+It follows the command flow and records its safeguards. Implementation decisions
+and validation history live in [plan.md](plan.md).
 
 ## Connection to the existing architecture
 
-| Layer in ARCHITECTURE.md          | Stash integration                                                                                                                                           |
+| Existing layer                    | Stash integration                                                                                                                                           |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | User entry points and concurrency | Five palette commands enqueue complete workflows, including dialogs, through the existing `PromiseQueue`.                                                   |
 | Git actions                       | `GitActions` coordinates readiness, dialogs, saving open files, backend calls, refresh, and notices.                                                        |

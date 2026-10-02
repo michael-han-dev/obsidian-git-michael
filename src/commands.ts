@@ -1,4 +1,4 @@
-import { Notice, TFolder, WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, TFolder, WorkspaceLeaf } from "obsidian";
 import { HISTORY_VIEW_CONFIG, SOURCE_CONTROL_VIEW_CONFIG } from "./constants";
 import { SimpleGit } from "./gitManager/simpleGit";
 import ObsidianGit from "./main";
@@ -432,6 +432,36 @@ export function addCommmands(plugin: ObsidianGit) {
             }
         },
     });
+
+    const stashCommands = [
+        {
+            id: "stash-push",
+            name: "Stash changes",
+            action: () => plugin.gitActions.stashChanges(),
+        },
+        ...(["list", "apply", "pop", "drop"] as const).map((action) => ({
+            id: `stash-${action}`,
+            name:
+                action === "list"
+                    ? "List stashes"
+                    : `${action[0]!.toUpperCase()}${action.slice(1)} stash`,
+            action: () => plugin.gitActions.manageStash(action),
+        })),
+    ];
+    for (const command of stashCommands) {
+        plugin.addCommand({
+            id: command.id,
+            name: command.name,
+            checkCallback: (checking) => {
+                const available =
+                    Platform.isDesktopApp &&
+                    plugin.gitManager instanceof SimpleGit;
+                if (checking || !available) return available;
+                plugin.promiseQueue.addTask(command.action);
+                return true;
+            },
+        });
+    }
 
     plugin.addCommand({
         id: "toggle-line-author-info",

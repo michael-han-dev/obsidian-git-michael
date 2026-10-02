@@ -17,6 +17,7 @@ All setup instructions (including mobile), common issues, tips, and advanced con
 - 📜 **History View** for browsing commit logs and changed files - Open it with the `Open history view` command.
 - 🔍 **Diff View** for viewing changes in a file - Open it with the `Open diff view` command.
 - 📝 **Signs in the editor** to indicate added, modified, and deleted lines/hunks (desktop only).
+- **Git stash** in this fork: save, list, apply, pop, and drop local stashes on desktop. See [stash behavior](docs/Features.md#git-stash-desktop-only) and [local testing](tests/e2e/README.md).
 - GitHub integration to open files and history in your browser
 
 > For detailed file history, consider pairing this plugin with the [Version History Diff](obsidian://show-plugin?id=obsidian-version-history-diff) plugin.
@@ -78,6 +79,12 @@ View line-by-line changes directly in the editor with added, modified, and delet
   - `Create new branch`
   - `Delete branch`
   - `CAUTION: Delete repository`
+- Stash (desktop only)
+  - `Stash changes`: Shelves changes, optionally including new files
+  - `List stashes`: Opens a searchable list
+  - `Apply stash`: Restores changes and keeps the saved copy
+  - `Pop stash`: Restores changes and removes the saved copy on success
+  - `Drop stash`: Deletes a saved copy after confirmation
 - 🧪 Miscellaneous
   - `Open source control view`: Opens side pane displaying [Source control view](#sidebar-view)
   - `Open history view`: Opens side pane displaying [History view](#history-view)

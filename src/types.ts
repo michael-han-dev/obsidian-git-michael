@@ -307,6 +307,32 @@ export type DeleteBranchResult =
 
 export type FileStateMutationResult = { status: "updated" } | NotReadyResult;
 
+export interface StashEntry {
+    ref: string;
+    hash: string;
+    message: string;
+    date: string;
+}
+
+export interface StashCreateOptions {
+    message: string;
+    includeUntracked: boolean;
+}
+
+export type StashCreateResult =
+    | { status: "stashed"; entry: StashEntry }
+    | { status: "nothing-to-stash" };
+
+export type StashPopResult =
+    | { status: "popped" }
+    | { status: "applied-retained"; error: unknown };
+
+export type StashWorkflowResult =
+    | StashCreateResult
+    | StashPopResult
+    | { status: "applied" | "dropped" | "displayed" | "empty" | "cancelled" }
+    | NotReadyResult;
+
 export type ListChangedFilesResult =
     | { status: "displayed" }
     | { status: "blocked"; reason: "too-many-changes"; files: number }
@@ -417,6 +443,7 @@ export enum GitOperation {
     push,
     fetch,
     checkout,
+    stash,
 }
 
 export interface LogEntry {

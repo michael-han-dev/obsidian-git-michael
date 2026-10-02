@@ -27,6 +27,10 @@ import type {
     PullResult,
     PushResult,
     Status,
+    StashEntry,
+    StashCreateOptions,
+    StashCreateResult,
+    StashPopResult,
 } from "../types";
 import { GitConflictError, GitOperation, NoNetworkError } from "../types";
 import { impossibleBranch, spawnAsync, splitRemoteBranch } from "../utils";
@@ -1473,6 +1477,184 @@ export class SimpleGit extends GitManager {
         if (firstPart === undefined) return "";
         const res = await this.git.raw(firstPart, ...parts.slice(1));
         return res;
+    }
+
+    private async assertStashScope(): Promise<void> {
+        const adapter = this.app.vault.adapter as FileSystemAdapter;
+        const relativeRoot = await this.git.revparse(["--show-cdup"]);
+        const repositoryRoot = path.resolve(
+            this.absoluteRepoPath,
+            relativeRoot.trim()
+        );
+        const [vaultRoot, actualRoot] = await Promise.all([
+            fsPromises.realpath(adapter.getBasePath()),
+            fsPromises.realpath(repositoryRoot),
+        ]);
+        const relative = path.relative(vaultRoot, actualRoot);
+        if (
+            relative === ".." ||
+            relative.startsWith(".." + path.sep) ||
+            path.isAbsolute(relative)
+        ) {
+            throw new Error("Stash requires a repository inside the vault.");
+        }
+    }
+
+    private async assertStashReady(): Promise<void> {
+        await this.assertStashScope();
+        for (const name of [
+            "MERGE_HEAD",
+            "rebase-merge",
+            "rebase-apply",
+            "CHERRY_PICK_HEAD",
+            "REVERT_HEAD",
+        ]) {
+            const gitPath = await this.git.revparse(["--git-path", name]);
+            try {
+                await fsPromises.access(
+                    path.resolve(this.absoluteRepoPath, gitPath.trim())
+                );
+            } catch (error) {
+                if (
+                    error instanceof Error &&
+                    "code" in error &&
+                    error.code === "ENOENT"
+                ) {
+                    continue;
+                }
+                throw error;
+            }
+            throw new Error(
+                "Finish the current merge, rebase, cherry-pick, or revert before using stash."
+            );
+        }
+        const status = await this.git.status();
+        if (status.conflicted.length > 0) {
+            throw new GitConflictError(
+                status.conflicted,
+                new Error("Resolve existing conflicts before using stash.")
+            );
+        }
+    }
+
+    async listStashes(): Promise<StashEntry[]> {
+        await this.assertStashScope();
+        const output = await this.git.raw([
+            "stash",
+            "list",
+            "--format=%gd%x00%H%x00%gs%x00%cI",
+        ]);
+        return output
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .map((line) => {
+                const [ref, hash, message, date] = line.split("\0");
+                if (
+                    ref === undefined ||
+                    !/^stash@\{\d+\}$/.test(ref) ||
+                    hash === undefined ||
+                    !/^[a-f0-9]{40,64}$/.test(hash) ||
+                    message === undefined ||
+                    date === undefined
+                ) {
+                    throw new Error("Could not read the Git stash list.");
+                }
+                return { ref, hash, message, date };
+            });
+    }
+
+    private async validateStash(entry: StashEntry): Promise<void> {
+        const current = (await this.listStashes()).find(
+            (candidate) => candidate.ref === entry.ref
+        );
+        if (current?.hash !== entry.hash) {
+            throw new Error("Stash list changed. Select the stash again.");
+        }
+    }
+
+    async stashPush(options: StashCreateOptions): Promise<StashCreateResult> {
+        return this.withGitOperation(GitOperation.stash, async () => {
+            await this.assertStashReady();
+            const head = await this.git.revparse([
+                "--verify",
+                "--quiet",
+                "HEAD",
+            ]);
+            if (!/^[a-f0-9]{40,64}$/.test(head.trim())) {
+                throw new Error(
+                    "Create an initial commit before stashing changes."
+                );
+            }
+            const before = await this.listStashes();
+            const args = ["stash", "push"];
+            if (options.includeUntracked) args.push("--include-untracked");
+            if (options.message.trim()) args.push("--message", options.message);
+            await this.git.raw(args);
+            const after = await this.listStashes();
+            const entry = after[0];
+            if (
+                entry === undefined ||
+                (after.length === before.length &&
+                    entry.hash === before[0]?.hash)
+            ) {
+                return { status: "nothing-to-stash" };
+            }
+            return { status: "stashed", entry };
+        });
+    }
+
+    private async applyStash(
+        entry: StashEntry,
+        restoreIndex: boolean
+    ): Promise<void> {
+        const args = ["stash", "apply"];
+        if (restoreIndex) args.push("--index");
+        args.push(entry.hash);
+        try {
+            await this.git.raw(args);
+        } catch (error) {
+            await this.throwConflictError(error);
+        }
+        const status = await this.git.status();
+        if (status.conflicted.length > 0) {
+            throw new GitConflictError(
+                status.conflicted,
+                new Error("Stash application produced conflicts.")
+            );
+        }
+    }
+
+    async stashApply(entry: StashEntry, restoreIndex: boolean): Promise<void> {
+        return this.withGitOperation(GitOperation.stash, async () => {
+            await this.assertStashReady();
+            await this.validateStash(entry);
+            await this.applyStash(entry, restoreIndex);
+        });
+    }
+
+    async stashPop(
+        entry: StashEntry,
+        restoreIndex: boolean
+    ): Promise<StashPopResult> {
+        return this.withGitOperation(GitOperation.stash, async () => {
+            await this.assertStashReady();
+            await this.validateStash(entry);
+            await this.applyStash(entry, restoreIndex);
+            try {
+                await this.validateStash(entry);
+                await this.git.raw(["stash", "drop", entry.ref]);
+                return { status: "popped" };
+            } catch (error) {
+                return { status: "applied-retained", error };
+            }
+        });
+    }
+
+    async stashDrop(entry: StashEntry): Promise<void> {
+        return this.withGitOperation(GitOperation.stash, async () => {
+            await this.validateStash(entry);
+            await this.git.raw(["stash", "drop", entry.ref]);
+        });
     }
 
     async getSubmoduleOfFile(

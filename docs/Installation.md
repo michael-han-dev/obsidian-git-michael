@@ -18,6 +18,32 @@ Go to "Settings" -> "Community plugins" -> "Browse", search for "Git", install a
 4. Go to settings and disable restricted mode
 5. Enable `Git`
 
+### Install this local fork
+
+To use this fork's stash commands in your own vault, install its build into
+that vault. Building the repository alone does not update Obsidian.
+
+1. With Node >=24 and pnpm >=11, run `pnpm install --frozen-lockfile`, then
+   `pnpm run build` from this repository.
+2. Disable **Git** in the target vault's Community plugins settings.
+3. Copy the root `main.js`, `manifest.json`, and `styles.css` into
+   `<vault>/.obsidian/plugins/obsidian-git/`. Replace those three files while
+   preserving the existing `data.json` settings file.
+4. Restart Obsidian and enable **Git**. In the Command Palette, search for
+   `Git: Stash changes`.
+
+If you package these three files in a local ZIP, extract it into the same plugin
+directory instead of copying them individually. Generated builds and ZIPs are
+excluded from source control.
+This fork uses the existing `obsidian-git` plugin ID, so it replaces the upstream
+installation in that vault. A Community plugin update can overwrite the fork;
+reinstall your local build if that happens.
+
+Start with a disposable vault using the
+[manual test checklist](../tests/e2e/README.md#manual-test-in-obsidian).
+The automated E2E command installs the build into its own test vault and does
+not require changing your normal plugin installation.
+
 # Windows
 
 Installing [GitHub Desktop](https://github.com/apps/desktop) is **not** enough! You need to install regular Git as well.

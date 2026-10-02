@@ -73,6 +73,7 @@ export class StatusBar {
     }
 
     private displayState() {
+        this.statusBarEl.removeClass(this.base + "stash");
         //Messages have to be removed before the state is set
         if (
             this.statusBarEl.getText().length > 3 ||
@@ -180,6 +181,12 @@ export class StatusBar {
                 setIcon(this.iconEl, "git-branch");
                 this.displayProgressText();
                 this.statusBarEl.addClass(this.base + "checkout");
+                break;
+            case GitOperation.stash:
+                this.statusBarEl.ariaLabel = "Updating stash...";
+                setIcon(this.iconEl, "archive");
+                this.textEl.empty();
+                this.statusBarEl.addClass(this.base + "stash");
                 break;
             default:
                 this.statusBarEl.ariaLabel = "Failed on initialization!";

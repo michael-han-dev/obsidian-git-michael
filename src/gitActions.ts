@@ -1,5 +1,12 @@
 import { Errors } from "isomorphic-git";
-import { normalizePath, Notice, Platform, TFile, moment } from "obsidian";
+import {
+    normalizePath,
+    Notice,
+    Platform,
+    TFile,
+    TextFileView,
+    moment,
+} from "obsidian";
 import * as fsPromises from "fs/promises";
 import { CustomMessageModal } from "src/ui/modals/customMessageModal";
 import { IsomorphicGit } from "./gitManager/isomorphicGit";
@@ -27,6 +34,7 @@ import type {
     SwitchBranchResult,
     UnstagedFile,
     FileStateMutationResult,
+    StashWorkflowResult,
 } from "./types";
 import { GitConflictError } from "./types";
 import { BranchModal } from "./ui/modals/branchModal";
@@ -40,6 +48,11 @@ import {
 } from "./utils";
 import { DiscardModal } from "./ui/modals/discardModal";
 import { runGitAction, type GitActionResult } from "./gitAction";
+import {
+    StashCreateModal,
+    StashSelectModal,
+    StashDropModal,
+} from "./ui/modals/stashModal";
 
 import type ObsidianGit from "./main";
 
@@ -955,6 +968,130 @@ export class GitActions {
             this.plugin.app.workspace.trigger("obsidian-git:refresh");
             return { status: "updated" };
         });
+    }
+
+    private getStashManager(): SimpleGit {
+        if (
+            !Platform.isDesktopApp ||
+            !(this.plugin.gitManager instanceof SimpleGit)
+        ) {
+            throw new Error(
+                "Stash is only supported on desktop with native Git."
+            );
+        }
+        return this.plugin.gitManager;
+    }
+
+    private async saveOpenTextFiles(): Promise<void> {
+        const views: TextFileView[] = [];
+        this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+            if (leaf.view instanceof TextFileView && leaf.view.file) {
+                views.push(leaf.view);
+            }
+        });
+        for (const view of views) await view.save();
+    }
+
+    async stashChanges(): Promise<GitActionResult<StashWorkflowResult>> {
+        const result = await this.runReadyGitAction<StashWorkflowResult>(
+            async () => {
+                const manager = this.getStashManager();
+                const options = await new StashCreateModal(
+                    this.plugin.app
+                ).openAndGetResult();
+                if (options === undefined) return { status: "cancelled" };
+                try {
+                    await this.saveOpenTextFiles();
+                    return await manager.stashPush(options);
+                } finally {
+                    this.plugin.app.workspace.trigger("obsidian-git:refresh");
+                }
+            }
+        );
+        if (result.status === "success") this.reportStashResult(result.value);
+        return result;
+    }
+
+    async manageStash(
+        action: "list" | "apply" | "pop" | "drop"
+    ): Promise<GitActionResult<StashWorkflowResult>> {
+        const result = await this.runReadyGitAction<StashWorkflowResult>(
+            async () => {
+                const manager = this.getStashManager();
+                const entries = await manager.listStashes();
+                if (entries.length === 0) return { status: "empty" };
+                const selection = await new StashSelectModal(
+                    this.plugin,
+                    entries,
+                    action === "list"
+                        ? "Stashes"
+                        : `${action[0]!.toUpperCase()}${action.slice(1)} stash`,
+                    action === "apply" || action === "pop"
+                ).openAndGetResult();
+                if (selection === undefined) return { status: "cancelled" };
+                const { entry, restoreIndex } = selection;
+                if (action === "list") return { status: "displayed" };
+                if (action === "drop") {
+                    if (
+                        !(await new StashDropModal(
+                            this.plugin,
+                            entry
+                        ).openAndGetResult())
+                    ) {
+                        return { status: "cancelled" };
+                    }
+                    await manager.stashDrop(entry);
+                    return { status: "dropped" };
+                }
+                try {
+                    await this.saveOpenTextFiles();
+                    if (action === "pop")
+                        return await manager.stashPop(entry, restoreIndex);
+                    await manager.stashApply(entry, restoreIndex);
+                    return { status: "applied" };
+                } finally {
+                    this.plugin.app.workspace.trigger("obsidian-git:refresh");
+                }
+            }
+        );
+        if (result.status === "success") this.reportStashResult(result.value);
+        return result;
+    }
+
+    private reportStashResult(result: StashWorkflowResult): void {
+        switch (result.status) {
+            case "stashed":
+                this.plugin.displayMessage(
+                    `Stashed changes: ${result.entry.message}`
+                );
+                return;
+            case "nothing-to-stash":
+                this.plugin.displayMessage("Nothing to stash");
+                return;
+            case "empty":
+                this.plugin.displayMessage("No stashes found");
+                return;
+            case "applied":
+                this.plugin.displayMessage(
+                    "Applied stash; saved copy retained"
+                );
+                return;
+            case "popped":
+                this.plugin.displayMessage("Restored and removed stash");
+                return;
+            case "dropped":
+                this.plugin.displayMessage("Dropped stash");
+                return;
+            case "applied-retained":
+                this.plugin.displayError(
+                    `Changes restored; stash retained. ${result.error instanceof Error ? result.error.message : String(result.error)}`
+                );
+                return;
+            case "displayed":
+            case "cancelled":
+            case "skipped":
+                return;
+        }
     }
 
     async setGitConfig(

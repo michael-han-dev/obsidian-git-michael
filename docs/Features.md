@@ -27,6 +27,45 @@ The main `Commit-and-sync` command and button always stage and commit all change
 
 Automatic commits use their separate `Auto commit-and-sync only staged files` setting and are not affected by `Stage all changes when nothing is staged`.
 
+## Git stash (desktop only)
+
+This fork provides five commands through the Command Palette:
+
+| Command | Result |
+| --- | --- |
+| `Stash changes` | Saves uncommitted changes and returns files to HEAD. An optional message identifies the stash. |
+| `List stashes` | Displays searchable references, messages, and dates. Selection makes no changes. |
+| `Apply stash` | Restores a selected stash and keeps its saved copy. |
+| `Pop stash` | Restores a selected stash, then removes its saved copy on success. |
+| `Drop stash` | Deletes a selected stash after confirmation, without restoring it. |
+
+**Include untracked files** is enabled by default. Newly created notes included
+in a stash temporarily disappear until restored. Ignored files are always left
+unchanged. **Restore staging**, offered by apply/pop, is off by default; enable
+it to restore the original staged changes as well as file contents.
+
+Stashes use native Git and remain local to this repository. Commit, push, and
+sync do not upload them. Mobile has no stash commands. The repository must be
+rooted at the vault or within it; parent repositories are rejected. Stashing
+does not recurse into submodules and requires an initial commit.
+
+Push/apply/pop refuse unresolved conflicts or an unfinished merge, rebase,
+cherry-pick, or revert. Restoration uses Git's normal protection for existing
+edits. Conflicting restoration can leave conflict markers and partial changes;
+the stash is retained. Resolve these changes before trying further stash
+operations. If pop restores changes but cannot delete the stash, its notice
+says **Changes restored; stash retained**. Do not apply it again automatically;
+inspect the files, then drop the retained copy when ready.
+
+The plugin saves open text files before changing the working tree and refreshes
+source control afterwards. Stash workflows use the same queue as other Git
+commands. Automatic routines keep their existing settings and may commit
+restored files later. Use **Pause/Resume automatic routines**
+before a stash/pull/restore workflow when needed, then resume afterwards.
+
+See [local installation](Installation.md#install-this-local-fork) and
+[manual and automated testing](../tests/e2e/README.md).
+
 ## History View
 
 Open it using the "Open history view" command. It behaves like `git log` resulting in a list of the last commits. Each commit entry can be expanded to see the changed files in that commit. By clicking on a file, you can even see the diff.
